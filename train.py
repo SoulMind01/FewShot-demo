@@ -40,7 +40,9 @@ class ARGUMENTS:
         self.num_ref_dist = num_ref_dist
 
 
-def train(args: ARGUMENTS) -> tuple[pd.DataFrame, float, float, float, float, float]:
+def train(
+    args: ARGUMENTS, small: int = 0
+) -> tuple[pd.DataFrame, float, float, float, float, float]:
     """
     return (auc, f1, precision, recall, accuracy)
     """
@@ -273,6 +275,8 @@ def train(args: ARGUMENTS) -> tuple[pd.DataFrame, float, float, float, float, fl
             print("--- %s seconds ---" % (time.time() - start_time))
             training_time = time.time() - start_time
             model.eval()
+            if small != 0:
+                val_dataset = torch.utils.data.Subset(val_dataset, range(small))
             loader = torch.utils.data.DataLoader(
                 val_dataset, batch_size=1, shuffle=True
             )

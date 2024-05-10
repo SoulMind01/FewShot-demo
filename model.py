@@ -8,11 +8,12 @@ import torch.nn.functional as F
 
 
 class FASHION_VGG3_pre(nn.Module):
+
     def __init__(self, vector_size, biases):
         super(FASHION_VGG3_pre, self).__init__()
-
+        trained = False
         self.act = nn.LeakyReLU()
-        self.block1 = models.vgg16(pretrained=True).features[0]
+        self.block1 = models.vgg16(pretrained=trained).features[0]
         self.block1.bias.requires_grad = False
         self.bn1 = nn.BatchNorm2d(64, eps=1e-04, affine=False)
         self.bn2 = nn.BatchNorm2d(64, eps=1e-04, affine=False)
@@ -22,13 +23,13 @@ class FASHION_VGG3_pre(nn.Module):
         self.bn6 = nn.BatchNorm2d(256, eps=1e-04, affine=False)
         self.bn7 = nn.BatchNorm2d(256, eps=1e-04, affine=False)
         self.bn8 = nn.BatchNorm2d(256, eps=1e-04, affine=False)
-        self.block2 = models.vgg16(pretrained=True).features[2]
-        self.block3 = models.vgg16(pretrained=True).features[4:6]
-        self.block4 = models.vgg16(pretrained=True).features[7]
-        self.block5 = models.vgg16(pretrained=True).features[9:11]
-        self.block6 = models.vgg16(pretrained=True).features[12]
-        self.block7 = models.vgg16(pretrained=True).features[14]
-        self.block8 = models.vgg16(pretrained=True).features[16]
+        self.block2 = models.vgg16(pretrained=trained).features[2]
+        self.block3 = models.vgg16(pretrained=trained).features[4:6]
+        self.block4 = models.vgg16(pretrained=trained).features[7]
+        self.block5 = models.vgg16(pretrained=trained).features[9:11]
+        self.block6 = models.vgg16(pretrained=trained).features[12]
+        self.block7 = models.vgg16(pretrained=trained).features[14]
+        self.block8 = models.vgg16(pretrained=trained).features[16]
         self.classifier = nn.Linear(2304, vector_size, bias=False)
 
         if biases == 0:
