@@ -77,6 +77,15 @@ def train(
             self.device = device
 
         def forward(self, output1, vectors, label):
+            # calculate the center of vectors
+            center = torch.mean(torch.stack(vectors), dim=0)
+            # calculate the distance between the center and all other vectors
+            distances = [dist(center, i) for i in vectors]
+            # use the variance of the distances as the spheicity loss
+            sphericity_loss = torch.var(torch.stack(distances))
+
+            if len(vectors) == 1:
+                print(11)
             euclidean_distance = torch.FloatTensor([0]).to(self.device)
 
             # get the distance between output1 and all other vectors
@@ -109,7 +118,7 @@ def train(
                 )
                 * 0.5
             )
-            return loss
+            return loss + sphericity_loss
 
     # return the feature embedding
     def init_feat_vec(model, base_ind, train_dataset, device):
@@ -252,11 +261,29 @@ def train(
                 else:
                     output1 = model.forward(img1.float())
 
-                if base == True:
-                    output2 = anchor
+                if args.k == 1:
+                    if base == True:
+                        output2 = anchor
+                    else:
+                        output2 = model.forward(img2.float())
+                    vecs = [output2]
+
                 else:
-                    output2 = model.forward(img2.float())
-                vecs = [output2]
+                    vecs = []
+                    ind2 = ind.copy()
+                    np.random.seed(seed)
+                    np.random.shuffle(ind2)
+                    for j in range(args.k):
+                        if (ind2[j] != base_ind) and (index != ind2[j]):
+                            output2 = model(
+                                train_dataset.__getitem__(ind2[j], seed, base_ind)[0]
+                                .to(device)
+                                .float()
+                            )
+                            vecs.append(output2)
+
+                if len(vecs) == 1:
+                    print("133")
 
                 if batch_ind == 0:
                     loss = loss_fn(output1, vecs, labels)

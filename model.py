@@ -11,7 +11,7 @@ class FASHION_VGG3_pre(nn.Module):
 
     def __init__(self, vector_size, biases):
         super(FASHION_VGG3_pre, self).__init__()
-        trained = False
+        trained = True
         self.act = nn.LeakyReLU()
         self.block1 = models.vgg16(pretrained=trained).features[0]
         self.block1.bias.requires_grad = False
