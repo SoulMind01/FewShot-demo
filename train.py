@@ -20,7 +20,7 @@ class ARGUMENTS:
         contamination: float,
         batch_size: int,
         biases: int,
-        num_ref_dist: int,
+        dataset: str,
     ):
         self.model_type = model_type
         self.normal_class = normal_class
@@ -37,7 +37,7 @@ class ARGUMENTS:
         self.contamination = contamination
         self.batch_size = batch_size
         self.biases = biases
-        self.num_ref_dist = num_ref_dist
+        self.dataset = dataset
 
 
 def train(
@@ -82,10 +82,10 @@ def train(
             # calculate the distance between the center and all other vectors
             distances = [dist(center, i) for i in vectors]
             # use the variance of the distances as the spheicity loss
-            sphericity_loss = torch.var(torch.stack(distances))
+            sphericity_loss = (
+                torch.var(torch.stack(distances)) if len(vectors) > 1 else 0
+            )
 
-            if len(vectors) == 1:
-                print(11)
             euclidean_distance = torch.FloatTensor([0]).to(self.device)
 
             # get the distance between output1 and all other vectors
@@ -108,16 +108,21 @@ def train(
                 euclidean_distance = (1 / self.v) * euclidean_distance
 
             # calculate the loss
-            loss = ((1 - label) * torch.pow(euclidean_distance, 2) * 0.5) + (
-                (label)
-                * torch.pow(
-                    torch.max(
-                        torch.Tensor([torch.tensor(0), marg - euclidean_distance])
-                    ),
-                    2,
-                )
-                * 0.5
+            # loss = ((1 - label) * torch.pow(euclidean_distance, 2) * 0.5) + (
+            #     (label)
+            #     * torch.pow(
+            #         torch.max(
+            #             torch.Tensor([torch.tensor(0), marg - euclidean_distance])
+            #         ),
+            #         2,
+            #     )
+            #     * 0.5
+            # )
+
+            loss = (1 - label) * euclidean_distance + label * torch.max(
+                torch.Tensor([torch.tensor(0), marg - euclidean_distance])
             )
+
             return loss + sphericity_loss
 
     # return the feature embedding
@@ -167,15 +172,12 @@ def train(
 
     N = args.num_ref
     num_ref_eval = args.num_ref_eval
-    num_ref_dist = args.num_ref_dist
     if num_ref_eval == None:
         num_ref_eval = N
-    if num_ref_dist == None:
-        num_ref_dist = N
 
     indexes = create_reference(
         args.contamination,
-        "fashion",
+        args.dataset,  #
         args.normal_class,
         "train",
         "data/",
@@ -189,15 +191,15 @@ def train(
     torch.cuda.manual_seed_all(args.weight_init_seed)
 
     train_dataset = load_dataset(
-        "fashion", indexes, args.normal_class, "train", "data/", True
+        args.dataset, indexes, args.normal_class, "train", "data/", True
     )
-    model = FASHION_VGG3_pre(args.vector_size, args.biases)
+    model = FASHION_VGG3_pre(args.vector_size, args.biases, args.dataset)
 
     if args.model_type == "RESNET":
         model.apply(deactivate_batchnorm)
     ref_dataset = train_dataset
     val_dataset = load_dataset(
-        "fashion", indexes, args.normal_class, "test", "data/", True
+        args.dataset, indexes, args.normal_class, "test", "data/", True
     )
 
     # put the model to the device
@@ -256,16 +258,18 @@ def train(
                 img2 = img2.to(device)
                 labels = labels.to(device)
 
-                if index == base_ind:
-                    output1 = anchor
-                else:
-                    output1 = model.forward(img1.float())
+                # if index == base_ind:
+                #     output1 = anchor
+                # else:
+                #     output1 = model.forward(img1.float())
+                output1 = model.forward(img1.float())
 
                 if args.k == 1:
-                    if base == True:
-                        output2 = anchor
-                    else:
-                        output2 = model.forward(img2.float())
+                    # if base == True:
+                    #     output2 = anchor
+                    # else:
+                    #     output2 = model.forward(img2.float())
+                    output2 = model.forward(img2.float())
                     vecs = [output2]
 
                 else:
@@ -274,16 +278,13 @@ def train(
                     np.random.seed(seed)
                     np.random.shuffle(ind2)
                     for j in range(args.k):
-                        if (ind2[j] != base_ind) and (index != ind2[j]):
+                        if index != ind2[j]:
                             output2 = model(
                                 train_dataset.__getitem__(ind2[j], seed, base_ind)[0]
                                 .to(device)
                                 .float()
                             )
                             vecs.append(output2)
-
-                if len(vecs) == 1:
-                    print("133")
 
                 if batch_ind == 0:
                     loss = loss_fn(output1, vecs, labels)
@@ -315,18 +316,21 @@ def train(
 
             for i in ind:
                 img1, _, _, _ = ref_dataset.__getitem__(i)
-                if i == base_ind:
-                    ref_images["images{}".format(i)] = anchor
-                else:
-                    ref_images["images{}".format(i)] = model.forward(
-                        img1.to(device).float()
-                    )
+                # if i == base_ind:
+                #     ref_images["images{}".format(i)] = anchor
+                # else:
+                #     ref_images["images{}".format(i)] = model.forward(
+                #         img1.to(device).float()
+                #     )
+                ref_images["images{}".format(i)] = model.forward(
+                    img1.to(device).float()
+                )
                 outs["outputs{}".format(i)] = []
 
             means = []
             minimum_dists = []
             labels = []
-            loss_sum = 0
+            # loss_sum = 0
 
             # loop through images in dataloader
             with torch.inference_mode():
@@ -354,9 +358,9 @@ def train(
                         total += distance.item()
                         if distance.detach().item() < mini:
                             mini = distance.item()
-                        loss_sum += loss_fn(
-                            out, [ref_images["images{}".format(j)]], label
-                        ).item()
+                        # loss_sum += loss_fn(
+                        #     out, [ref_images["images{}".format(j)]], label
+                        # ).item()
                     minimum_dists.append(mini)
                     means.append(total / len(indexes))
 
@@ -393,8 +397,8 @@ def train(
     tn = len(df.loc[(outputs1 == 0) & (df["label"] == 0)])
     fn = len(df.loc[(outputs1 == 0) & (df["label"] == 1)])
     tp = len(df.loc[(outputs1 == 1) & (df["label"] == 1)])
-    spec = tn / (fp + tn)
-    recall = tp / (tp + fn)
+    spec = tn / (fp + tn) if (fp + tn) != 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) != 0 else 0
     acc = (recall + spec) / 2
     print("Normal class: {}".format(args.normal_class))
     print("AUC: {}".format(auc_min))
@@ -424,8 +428,8 @@ def train(
             axis=0,
         )
 
-    avg_loss = (loss_sum / num_ref_eval) / val_dataset.__len__()
-    print("Average loss: {}".format(avg_loss))
+    # avg_loss = (loss_sum / num_ref_eval) / val_dataset.__len__()
+    # print("Average loss: {}".format(avg_loss))
     print(
         "auc: {}, f1: {}, spec: {}, recall: {}, acc: {}".format(
             auc, f1, spec, recall, acc

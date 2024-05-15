@@ -9,7 +9,11 @@ import torch.nn.functional as F
 
 class FASHION_VGG3_pre(nn.Module):
 
-    def __init__(self, vector_size, biases):
+    def __init__(self, vector_size, biases, dataset_name):
+        inner_vector_size = {}
+        inner_vector_size["fashion"] = 2304
+        inner_vector_size["mnist"] = 2304
+        inner_vector_size["cifar10"] = 4096
         super(FASHION_VGG3_pre, self).__init__()
         trained = True
         self.act = nn.LeakyReLU()
@@ -30,7 +34,10 @@ class FASHION_VGG3_pre(nn.Module):
         self.block6 = models.vgg16(pretrained=trained).features[12]
         self.block7 = models.vgg16(pretrained=trained).features[14]
         self.block8 = models.vgg16(pretrained=trained).features[16]
-        self.classifier = nn.Linear(2304, vector_size, bias=False)
+        # self.classifier = nn.Linear(2304, vector_size, bias=False)
+        self.classifier = nn.Linear(
+            inner_vector_size[dataset_name], vector_size, bias=biases
+        )
 
         if biases == 0:
             self.block1.bias.requires_grad = False
