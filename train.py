@@ -66,20 +66,28 @@ def train(
         d_norm3 = torch.sum(torch.pow(torch.abs(output1 - vector), 3)).to(device)
         d_infinity = torch.max(torch.abs(output1 - vector)).to(device)
         d_cosine = F.cosine_similarity(output1, vector).to(device)
-        # sum = d_norm2 + d_norm1 + d_norm3 + d_infinity + d_cosine * len(output1)
-        # weights = F.softmax(
-        #     torch.Tensor([d_norm2, d_norm1, d_norm3, d_infinity, d_cosine]), dim=0
-        # ).to(device)
-        # norms = torch.Tensor([d_norm2, d_norm1, d_norm3, d_infinity, d_cosine]).to(
-        #     device
-        # )
-        # sum = torch.dot(weights, norms)
+        weights = F.softmax(
+            torch.Tensor(
+                [
+                    d_norm1 * 0.001,
+                    d_norm2 * 0.04,
+                    d_norm3,
+                    d_infinity * 0.04,
+                    d_cosine * len(output1) * 0.01,
+                ]
+            ),
+            dim=0,
+        ).to(device)
+        norms = torch.Tensor([d_norm2, d_norm1, d_norm3, d_infinity, d_cosine]).to(
+            device
+        )
+        sum = torch.dot(weights, norms)
 
-        d_norm1 = torch.max(d_norm1, d_norm2)
-        d_norm3 = torch.max(d_norm3, d_norm2)
-        d_infinity = torch.max(d_infinity, d_norm2)
-        d_cosine = torch.max(d_cosine, d_norm2)
-        sum = d_norm1 + d_norm2 + d_norm3 + d_infinity + d_cosine
+        # d_norm1 = torch.max(d_norm1, d_norm2)
+        # d_norm3 = torch.max(d_norm3, d_norm2)
+        # d_infinity = torch.max(d_infinity, d_norm2)
+        # d_cosine = torch.max(d_cosine, d_norm2)
+        # sum = d_norm1 + d_norm2 + d_norm3 + d_infinity + d_cosine
 
         # sum = F.cosine_similarity(output1, vector).to(device)
         # if label == 1:
