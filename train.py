@@ -21,6 +21,7 @@ class ARGUMENTS:
         batch_size: int,
         biases: int,
         dataset: str,
+        distance_method: str,
     ):
         self.model_type = model_type
         self.normal_class = normal_class
@@ -38,6 +39,7 @@ class ARGUMENTS:
         self.batch_size = batch_size
         self.biases = biases
         self.dataset = dataset
+        self.distance_method = distance_method
 
 
 def train(
@@ -56,15 +58,36 @@ def train(
         for i in range(0, len(lst), n):
             yield lst[i : i + n]
 
-    def dist(output1, vector):
+    def dist(output1, vector, label=0):
         # dist: 1,2,3,infinity,cosine
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        d_eculidean = F.pairwise_distance(output1, vector).to(device)
-        d_minkowski = torch.sum(torch.pow(torch.abs(output1 - vector), 1)).to(device)
-        d_minkowski += torch.sum(torch.pow(torch.abs(output1 - vector), 3)).to(device)
-        d_chebyshev = torch.max(torch.abs(output1 - vector)).to(device)
+        d_norm2 = F.pairwise_distance(output1, vector).to(device)
+        d_norm1 = torch.sum(torch.pow(torch.abs(output1 - vector), 1)).to(device)
+        d_norm3 = torch.sum(torch.pow(torch.abs(output1 - vector), 3)).to(device)
+        d_infinity = torch.max(torch.abs(output1 - vector)).to(device)
         d_cosine = F.cosine_similarity(output1, vector).to(device)
-        sum = d_eculidean + d_minkowski + d_chebyshev + d_cosine
+        # sum = d_norm2 + d_norm1 + d_norm3 + d_infinity + d_cosine * len(output1)
+        # weights = F.softmax(
+        #     torch.Tensor([d_norm2, d_norm1, d_norm3, d_infinity, d_cosine]), dim=0
+        # ).to(device)
+        # norms = torch.Tensor([d_norm2, d_norm1, d_norm3, d_infinity, d_cosine]).to(
+        #     device
+        # )
+        # sum = torch.dot(weights, norms)
+
+        d_norm1 = torch.max(d_norm1, d_norm2)
+        d_norm3 = torch.max(d_norm3, d_norm2)
+        d_infinity = torch.max(d_infinity, d_norm2)
+        d_cosine = torch.max(d_cosine, d_norm2)
+        sum = d_norm1 + d_norm2 + d_norm3 + d_infinity + d_cosine
+
+        # sum = F.cosine_similarity(output1, vector).to(device)
+        # if label == 1:
+        #     sum += torch.max(torch.abs(output1 - vector)).to(device)
+        #     sum += torch.sum(torch.pow(torch.abs(output1 - vector), 3)).to(device)
+        # else:
+        #     sum += torch.sum(torch.abs(output1 - vector)).to(device)
+        #     sum += F.pairwise_distance(output1, vector).to(device)
         return sum
 
     class DistLoss(torch.nn.Module):
@@ -118,6 +141,58 @@ def train(
             #     )
             #     * 0.5
             # )
+
+            loss = (1 - label) * euclidean_distance + label * torch.max(
+                torch.Tensor([torch.tensor(0), marg - euclidean_distance])
+            )
+
+            return loss + sphericity_loss
+
+    def L2_dist(vec1, vec2):
+        return F.pairwise_distance(vec1, vec2).to(device)
+
+    def L1_dist(vec1, vec2):
+        return torch.sum(torch.abs(vec1 - vec2)).to(device)
+
+    class ContrasstiveLoss(torch.nn.Module):
+        def __init__(self, alpha, anchor, device, v=0.0, margin=0.8):
+            super(ContrasstiveLoss, self).__init__()
+            self.margin = margin
+            self.v = v
+            self.alpha = alpha
+            self.anchor = anchor
+            self.device = device
+
+        def forward(self, output1, vectors, label):
+            # calculate the center of vectors
+            center = torch.mean(torch.stack(vectors), dim=0)
+            # calculate the distance between the center and all other vectors
+            distances = [L2_dist(center, i) for i in vectors]
+            # use the variance of the distances as the spheicity loss
+            sphericity_loss = (
+                torch.var(torch.stack(distances)) if len(vectors) > 1 else 0
+            )
+
+            euclidean_distance = torch.FloatTensor([0]).to(self.device)
+
+            # get the distance between output1 and all other vectors
+            for i in vectors:
+                euclidean_distance += (1 - self.alpha) * (
+                    L2_dist(output1, i)
+                    / torch.sqrt(torch.Tensor([output1.size()[1]])).to(self.device)
+                )
+
+            euclidean_distance += self.alpha * (
+                (F.pairwise_distance(output1, self.anchor))
+                / torch.sqrt(torch.Tensor([output1.size()[1]])).to(self.device)
+            )
+
+            # calculate the margin
+            marg = (len(vectors) + self.alpha) * self.margin
+
+            # if v > 0.0, apply soft-boundary
+            if self.v > 0.0:
+                euclidean_distance = (1 / self.v) * euclidean_distance
 
             loss = (1 - label) * euclidean_distance + label * torch.max(
                 torch.Tensor([torch.tensor(0), marg - euclidean_distance])
@@ -219,9 +294,15 @@ def train(
     base_ind = ind[rand_freeze]
     # anchor = init_feat_vec(model, base_ind, train_dataset, device)
     anchor = init_anchor_average(model, train_dataset, device)
-    loss_fn = DistLoss(args.alpha, anchor, device)
-    optimizer = optim.AdamW(
-        model.parameters(), lr=args.lr, weight_decay=args.weight_decay
+    loss_fn = (
+        DistLoss(args.alpha, anchor, device)
+        if args.distance_method == "multi"
+        else ContrasstiveLoss(args.alpha, anchor, device)
+    )
+    optimizer = (
+        optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        if args.distance_method == "multi"
+        else optim.SGD(model.parameters(), lr=args.lr, weight_decay=0.0001)
     )
 
     train_losses = []
@@ -237,7 +318,7 @@ def train(
     start_time = time.time()
 
     for epoch in range(args.epochs):
-        print("Starting epoch " + str(epoch + 1))
+        # print("Starting epoch " + str(epoch + 1))
         model.train()
         loss_sum = 0
 
@@ -297,10 +378,10 @@ def train(
             optimizer.step()
 
         train_losses.append((loss_sum / len(ind)))
-        print("Epoch: {}, Train loss: {}".format(epoch + 1, train_losses[-1]))
+        # print("Epoch: {}, Train loss: {}".format(epoch + 1, train_losses[-1]))
 
         if epoch == args.epochs - 1:
-            print("--- %s seconds ---" % (time.time() - start_time))
+            # print("--- %s seconds ---" % (time.time() - start_time))
             training_time = time.time() - start_time
             model.eval()
             if small != 0:
@@ -345,19 +426,34 @@ def train(
                     out = model.forward(image.to(device).float())
 
                     # calculate the distance from the test image to each of the datapoints in the reference set
-                    for j in range(0, num_ref_eval):
-                        distance = (1 - args.alpha) * (
-                            dist(out, ref_images["images{}".format(j)])
-                            / torch.sqrt(torch.Tensor([out.size()[1]])).to(device)
-                            + args.alpha
-                            * dist(out, anchor)
-                            / torch.sqrt(torch.Tensor([out.size()[1]])).to(device)
-                        )
+                    if args.distance_method == "multi":
+                        for j in range(0, num_ref_eval):
+                            distance = (1 - args.alpha) * (
+                                dist(out, ref_images["images{}".format(j)])
+                                / torch.sqrt(torch.Tensor([out.size()[1]])).to(device)
+                                + args.alpha
+                                * dist(out, anchor)
+                                / torch.sqrt(torch.Tensor([out.size()[1]])).to(device)
+                            )
 
-                        outs["outputs{}".format(j)].append(distance.item())
-                        total += distance.item()
-                        if distance.detach().item() < mini:
-                            mini = distance.item()
+                            outs["outputs{}".format(j)].append(distance.item())
+                            total += distance.item()
+                            if distance.detach().item() < mini:
+                                mini = distance.item()
+                    else:
+                        for j in range(0, num_ref_eval):
+                            distance = (1 - args.alpha) * (
+                                L2_dist(out, ref_images["images{}".format(j)])
+                                / torch.sqrt(torch.Tensor([out.size()[1]])).to(device)
+                                + args.alpha
+                                * L2_dist(out, anchor)
+                                / torch.sqrt(torch.Tensor([out.size()[1]])).to(device)
+                            )
+
+                            outs["outputs{}".format(j)].append(distance.item())
+                            total += distance.item()
+                            if distance.detach().item() < mini:
+                                mini = distance.item()
                         # loss_sum += loss_fn(
                         #     out, [ref_images["images{}".format(j)]], label
                         # ).item()
@@ -400,20 +496,20 @@ def train(
     spec = tn / (fp + tn) if (fp + tn) != 0 else 0
     recall = tp / (tp + fn) if (tp + fn) != 0 else 0
     acc = (recall + spec) / 2
-    print("Normal class: {}".format(args.normal_class))
-    print("AUC: {}".format(auc_min))
-    print("F1: {}".format(f1))
-    print("Balanced accuracy: {}".format(acc))
-    print(
-        "recall(the proportion of actual anomaly that are correctly identified): {}".format(
-            recall
-        )
-    )
-    print(
-        "specificity(the proportion of actual normal that are correctly identified): {}".format(
-            spec
-        )
-    )
+    # print("Normal class: {}".format(args.normal_class))
+    # print("AUC: {}".format(auc_min))
+    # print("F1: {}".format(f1))
+    # print("Balanced accuracy: {}".format(acc))
+    # print(
+    #     "recall(the proportion of actual anomaly that are correctly identified): {}".format(
+    #         recall
+    #     )
+    # )
+    # print(
+    #     "specificity(the proportion of actual normal that are correctly identified): {}".format(
+    #         spec
+    #     )
+    # )
     fpr, tpr, thresholds = roc_curve(np.array(df["label"]), np.array(df["means"]))
     auc = metrics.auc(fpr, tpr)
 
@@ -431,7 +527,7 @@ def train(
     # avg_loss = (loss_sum / num_ref_eval) / val_dataset.__len__()
     # print("Average loss: {}".format(avg_loss))
     print(
-        "auc: {}, f1: {}, spec: {}, recall: {}, acc: {}".format(
+        "auc: {:.4f}, f1: {:.4f}, spec: {:.4f}, recall: {:.4f}, acc: {:.4f}".format(
             auc, f1, spec, recall, acc
         )
     )
