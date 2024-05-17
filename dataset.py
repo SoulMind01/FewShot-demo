@@ -18,6 +18,8 @@ from torchvision import models
 import matplotlib.patches as mpatches
 import os
 import pickle
+from urllib.error import URLError
+import shutil
 
 
 class FASHION(data.Dataset):
@@ -446,7 +448,7 @@ class MNIST(data.Dataset):
 
 class CIFAR10(data.Dataset):
 
-    base_folder = "cifar10/raw"
+    base_folder = "cifar-10-batches-py"
     url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
     filename = "cifar-10-python.tar.gz"
     tgz_md5 = "c58f30108f718f92721af3b95e74349a"
@@ -467,11 +469,13 @@ class CIFAR10(data.Dataset):
         "md5": "5ff9c542aee3614f3951f8cda6e48888",
     }
 
-    def __init__(self, indexes, root: str, normal_class, task, download_data=False):
+    def __init__(
+        self, indexes, root: str, normal_class, task, data_path, download_data=False
+    ):
         super().__init__()
 
         self.task = task  # training set or test set
-        self.data_path = "data/"
+        self.data_path = data_path
         self.indexes = indexes
         self.normal_class = normal_class
         self.download_data = download_data
@@ -530,9 +534,24 @@ class CIFAR10(data.Dataset):
         if self._check_exists():
             return
 
-        download_and_extract_archive(
-            self.url, self.data_path, filename=self.filename, md5=self.tgz_md5
-        )
+        os.makedirs("data/cifar10", exist_ok=True)
+        os.makedirs("data/cifar10/raw", exist_ok=True)
+
+        # download files
+        for file_name, checksum in self.train_list + self.test_list:
+            url = f"https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+            try:
+                print("Downloading {}".format(url))
+                download_and_extract_archive(
+                    url,
+                    download_root="data/cifar10/raw",
+                    filename="cifar-10-python.tar.gz",
+                )
+            except URLError as error:
+                print("Failed to download (trying next):\n{}".format(error))
+                continue
+            finally:
+                print()
 
     def extra_repr(self) -> str:
         return "Split: {}".format("Train" if self.train is True else "Test")
@@ -613,6 +632,7 @@ def load_dataset(
             root=data_path,
             normal_class=normal_class,
             task=task,
+            data_path=data_path,
             download_data=download_data,
         )
     return dataset
