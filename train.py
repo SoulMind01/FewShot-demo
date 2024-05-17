@@ -52,11 +52,6 @@ def train(
     """
 
     def create_batches(lst, n):
-        """
-        Args:
-            lst - list of indexes for training instances
-            n - batch size
-        """
         for i in range(0, len(lst), n):
             yield lst[i : i + n]
 
@@ -80,24 +75,10 @@ def train(
             ),
             dim=0,
         ).to(device)
-        norms = torch.Tensor([d_norm2, d_norm1, d_norm3, d_infinity, d_cosine]).to(
+        norms = torch.Tensor([d_norm1, d_norm2, d_norm3, d_infinity, d_cosine]).to(
             device
         )
         sum = torch.dot(weights, norms)
-
-        # d_norm1 = torch.max(d_norm1, d_norm2)
-        # d_norm3 = torch.max(d_norm3, d_norm2)
-        # d_infinity = torch.max(d_infinity, d_norm2)
-        # d_cosine = torch.max(d_cosine, d_norm2)
-        # sum = d_norm1 + d_norm2 + d_norm3 + d_infinity + d_cosine
-
-        # sum = F.cosine_similarity(output1, vector).to(device)
-        # if label == 1:
-        #     sum += torch.max(torch.abs(output1 - vector)).to(device)
-        #     sum += torch.sum(torch.pow(torch.abs(output1 - vector), 3)).to(device)
-        # else:
-        #     sum += torch.sum(torch.abs(output1 - vector)).to(device)
-        #     sum += F.pairwise_distance(output1, vector).to(device)
         return sum
 
     class DistLoss(torch.nn.Module):
@@ -244,28 +225,21 @@ def train(
         anchor = anchor / len(train_dataset)
         return anchor
 
-    def deactivate_batchnorm(m):
-        """
-        Deactivate batch normalisation layers
-        """
-        if isinstance(m, nn.BatchNorm2d):
-            m.reset_parameters()
-            m.eval()
-            with torch.no_grad():
-                m.weight.fill_(1.0)
-                m.bias.zero_()
-
     N = args.num_ref
-    num_ref_eval = args.num_ref_eval
-    if num_ref_eval == None:
-        num_ref_eval = N
+    num_ref_eval = args.num_ref_eval if args.num_ref_eval != None else N
+
+    data_path = (
+        "data/mnist/raw"
+        if args.dataset == "mnist"
+        else "data/fashion/raw" if args.dataset == "fashion" else "data/cifar10/raw"
+    )
 
     indexes = create_reference(
         args.contamination,
-        args.dataset,  #
+        args.dataset,
         args.normal_class,
         "train",
-        "data/",
+        data_path,
         True,
         N,
         args.seed,
@@ -276,33 +250,42 @@ def train(
     torch.cuda.manual_seed_all(args.weight_init_seed)
 
     train_dataset = load_dataset(
-        args.dataset, indexes, args.normal_class, "train", "data/", True
+        args.dataset,
+        indexes,
+        args.normal_class,
+        task="train",
+        data_path=data_path,
+        download_data=True,
+    )
+    val_dataset = load_dataset(
+        args.dataset,
+        indexes,
+        args.normal_class,
+        task="test",
+        data_path=data_path,
+        download_data=False,
+    )
+    ref_dataset = load_dataset(
+        args.dataset,
+        indexes,
+        args.normal_class,
+        task="train",
+        data_path=data_path,
+        download_data=False,
     )
     model = FASHION_VGG3_pre(args.vector_size, args.biases, args.dataset)
-
-    if args.model_type == "RESNET":
-        model.apply(deactivate_batchnorm)
-    ref_dataset = train_dataset
-    val_dataset = load_dataset(
-        args.dataset, indexes, args.normal_class, "test", "data/", True
-    )
 
     # put the model to the device
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
 
-    # set model name
-    model_name = (
-        "resnet_normal_class_" + str(args.normal_class) + "_seed_" + str(args.seed)
-    )
-
     # init the anchor, optimizer, loss fn
     ind = list(range(0, len(indexes)))
+
     # select datapoint from ref set as anchor
     np.random.seed(args.epochs)
     rand_freeze = np.random.randint(len(indexes))
     base_ind = ind[rand_freeze]
-    # anchor = init_feat_vec(model, base_ind, train_dataset, device)
     anchor = init_anchor_average(model, train_dataset, device)
     loss_fn = (
         DistLoss(args.alpha, anchor, device)
@@ -316,16 +299,6 @@ def train(
     )
 
     train_losses = []
-    patience = 0
-    max_patience = 2  # patience based on train loss
-    max_iter = 0
-    patience2 = 10  # patience based on evaluation AUC
-    best_val_auc = 0
-    best_val_auc_min = 0
-    best_f1 = 0
-    best_acc = 0
-    stop_training = False
-    start_time = time.time()
 
     for epoch in range(args.epochs):
         # print("Starting epoch " + str(epoch + 1))
@@ -349,17 +322,9 @@ def train(
                 img2 = img2.to(device)
                 labels = labels.to(device)
 
-                # if index == base_ind:
-                #     output1 = anchor
-                # else:
-                #     output1 = model.forward(img1.float())
                 output1 = model.forward(img1.float())
 
                 if args.k == 1:
-                    # if base == True:
-                    #     output2 = anchor
-                    # else:
-                    #     output2 = model.forward(img2.float())
                     output2 = model.forward(img2.float())
                     vecs = [output2]
 
@@ -391,8 +356,6 @@ def train(
         # print("Epoch: {}, Train loss: {}".format(epoch + 1, train_losses[-1]))
 
         if epoch == args.epochs - 1 and args.evaluation_method == None:
-            # print("--- %s seconds ---" % (time.time() - start_time))
-            training_time = time.time() - start_time
             model.eval()
             if small != 0:
                 val_dataset = torch.utils.data.Subset(val_dataset, range(small))
@@ -415,7 +378,6 @@ def train(
             means = []
             minimum_dists = []
             labels = []
-            # loss_sum = 0
 
             # loop through images in dataloader
             with torch.inference_mode():
@@ -458,9 +420,7 @@ def train(
                             total += distance.item()
                             if distance.detach().item() < mini:
                                 mini = distance.item()
-                        # loss_sum += loss_fn(
-                        #     out, [ref_images["images{}".format(j)]], label
-                        # ).item()
+
                     minimum_dists.append(mini)
                     means.append(total / len(indexes))
 
@@ -483,10 +443,7 @@ def train(
     df = df.sort_values(by="minimum_dists", ascending=False).reset_index(drop=True)
 
     # calculate metrics
-    fpr, tpr, thresholds = roc_curve(
-        np.array(df["label"]), np.array(df["minimum_dists"])
-    )
-    auc_min = metrics.auc(fpr, tpr)
+    fpr, tpr, _ = roc_curve(np.array(df["label"]), np.array(df["minimum_dists"]))
     outputs = np.array(df["minimum_dists"])
     thres = np.percentile(outputs, 10)
     outputs1 = outputs.copy()
@@ -500,25 +457,9 @@ def train(
     spec = tn / (fp + tn) if (fp + tn) != 0 else 0
     recall = tp / (tp + fn) if (tp + fn) != 0 else 0
     acc = (recall + spec) / 2
-    # print("Normal class: {}".format(args.normal_class))
-    # print("AUC: {}".format(auc_min))
-    # print("F1: {}".format(f1))
-    # print("Balanced accuracy: {}".format(acc))
-    # print(
-    #     "recall(the proportion of actual anomaly that are correctly identified): {}".format(
-    #         recall
-    #     )
-    # )
-    # print(
-    #     "specificity(the proportion of actual normal that are correctly identified): {}".format(
-    #         spec
-    #     )
-    # )
     fpr, tpr, _ = roc_curve(np.array(df["label"]), np.array(df["means"]))
     auc = metrics.auc(fpr, tpr)
 
-    # avg_loss = (loss_sum / num_ref_eval) / val_dataset.__len__()
-    # print("Average loss: {}".format(avg_loss))
     print(
         "auc: {:.4f}, f1: {:.4f}, spec: {:.4f}, recall: {:.4f}, acc: {:.4f}".format(
             auc, f1, spec, recall, acc

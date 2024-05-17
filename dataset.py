@@ -446,7 +446,7 @@ class MNIST(data.Dataset):
 
 class CIFAR10(data.Dataset):
 
-    base_folder = "cifar-10-batches-py"
+    base_folder = "cifar10/raw"
     url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
     filename = "cifar-10-python.tar.gz"
     tgz_md5 = "c58f30108f718f92721af3b95e74349a"
@@ -471,12 +471,12 @@ class CIFAR10(data.Dataset):
         super().__init__()
 
         self.task = task  # training set or test set
-        self.data_path = root
+        self.data_path = "data/"
         self.indexes = indexes
         self.normal_class = normal_class
         self.download_data = download_data
 
-        if self.download_data:
+        if self.download_data and not self._check_exists():
             self.download()
 
         if (self.task == "train") | (self.task == "validate"):
@@ -524,7 +524,7 @@ class CIFAR10(data.Dataset):
             self.targets[self.targets == -1] = 1
 
     def _check_exists(self) -> bool:
-        return os.path.exists("data/cifar-10-python.tar.gz")
+        return os.path.exists("data/cifar10/raw")
 
     def download(self) -> None:
         if self._check_exists():
@@ -619,7 +619,14 @@ def load_dataset(
 
 
 def create_reference(
-    contamination, dataset_name, normal_class, task, data_path, download_data, N, seed
+    contamination,
+    dataset_name,
+    normal_class,
+    task,
+    data_path,
+    download_data,
+    N,
+    random_seed,
 ):
     """
     Get indexes for reference set
@@ -634,23 +641,24 @@ def create_reference(
         N - number in reference set
         seed
     """
+    random.seed(random_seed)
     indexes = []
+    # get all training data
     train_dataset = load_dataset(
         dataset_name, indexes, normal_class, task, data_path, download_data
-    )  # get all training data
-    ind = np.where(np.array(train_dataset.targets) == normal_class)[
-        0
-    ]  # get indexes in the training set that are equal to the normal class
-    random.seed(seed)
-    samp = random.sample(range(0, len(ind)), N)  # randomly sample N normal data points
+    )
+    # get indexes in the training set that are equal to the normal class
+    ind = np.where(np.array(train_dataset.targets) == normal_class)[0]
+
+    # randomly sample N normal data points
+    samp = random.sample(range(0, len(ind)), N)
     final_indexes = ind[samp]
     if contamination != 0:
         numb = np.ceil(N * contamination)
         if numb == 0.0:
             numb = 1.0
-        con = np.where(np.array(train_dataset.targets) != normal_class)[
-            0
-        ]  # get indexes of non-normal class
+            # get indexes of non-normal class
+        con = np.where(np.array(train_dataset.targets) != normal_class)[0]
         samp = random.sample(range(0, len(con)), int(numb))
         samp2 = random.sample(
             range(0, len(final_indexes)), len(final_indexes) - int(numb)
