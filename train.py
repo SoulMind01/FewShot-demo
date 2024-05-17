@@ -22,6 +22,7 @@ class ARGUMENTS:
         biases: int,
         dataset: str,
         distance_method: str,
+        evaluation_method: str = None,
     ):
         self.model_type = model_type
         self.normal_class = normal_class
@@ -40,6 +41,7 @@ class ARGUMENTS:
         self.biases = biases
         self.dataset = dataset
         self.distance_method = distance_method
+        self.evaluation_method = evaluation_method
 
 
 def train(
@@ -310,7 +312,7 @@ def train(
     optimizer = (
         optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         if args.distance_method == "multi"
-        else optim.SGD(model.parameters(), lr=args.lr, weight_decay=0.0001)
+        else optim.SGD(model.parameters(), lr=20, weight_decay=args.weight_decay)
     )
 
     train_losses = []
@@ -388,7 +390,7 @@ def train(
         train_losses.append((loss_sum / len(ind)))
         # print("Epoch: {}, Train loss: {}".format(epoch + 1, train_losses[-1]))
 
-        if epoch == args.epochs - 1:
+        if epoch == args.epochs - 1 and args.evaluation_method == None:
             # print("--- %s seconds ---" % (time.time() - start_time))
             training_time = time.time() - start_time
             model.eval()
@@ -405,12 +407,6 @@ def train(
 
             for i in ind:
                 img1, _, _, _ = ref_dataset.__getitem__(i)
-                # if i == base_ind:
-                #     ref_images["images{}".format(i)] = anchor
-                # else:
-                #     ref_images["images{}".format(i)] = model.forward(
-                #         img1.to(device).float()
-                #     )
                 ref_images["images{}".format(i)] = model.forward(
                     img1.to(device).float()
                 )
@@ -518,19 +514,8 @@ def train(
     #         spec
     #     )
     # )
-    fpr, tpr, thresholds = roc_curve(np.array(df["label"]), np.array(df["means"]))
+    fpr, tpr, _ = roc_curve(np.array(df["label"]), np.array(df["means"]))
     auc = metrics.auc(fpr, tpr)
-
-    # create dataframe of feature vectors for each image in the reference set
-    feat_vecs = pd.DataFrame(ref_images["images0"].detach().cpu().numpy())
-    for j in range(1, num_ref_eval):
-        feat_vecs = pd.concat(
-            [
-                feat_vecs,
-                pd.DataFrame(ref_images["images{}".format(j)].detach().cpu().numpy()),
-            ],
-            axis=0,
-        )
 
     # avg_loss = (loss_sum / num_ref_eval) / val_dataset.__len__()
     # print("Average loss: {}".format(avg_loss))

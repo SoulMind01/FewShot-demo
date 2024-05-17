@@ -523,7 +523,13 @@ class CIFAR10(data.Dataset):
             self.targets[self.targets == -2] = 0
             self.targets[self.targets == -1] = 1
 
+    def _check_exists(self) -> bool:
+        return os.path.exists("data/cifar-10-python.tar.gz")
+
     def download(self) -> None:
+        if self._check_exists():
+            return
+
         download_and_extract_archive(
             self.url, self.data_path, filename=self.filename, md5=self.tgz_md5
         )
