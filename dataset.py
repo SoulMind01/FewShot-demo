@@ -645,8 +645,8 @@ def create_reference(
     task,
     data_path,
     download_data,
-    N,
-    random_seed,
+    num_ref: int,
+    random_seed: int,
 ):
     """
     Get indexes for reference set
@@ -671,10 +671,10 @@ def create_reference(
     ind = np.where(np.array(train_dataset.targets) == normal_class)[0]
 
     # randomly sample N normal data points
-    samp = random.sample(range(0, len(ind)), N)
+    samp = random.sample(range(0, len(ind)), num_ref)
     final_indexes = ind[samp]
     if contamination != 0:
-        numb = np.ceil(N * contamination)
+        numb = np.ceil(num_ref * contamination)
         if numb == 0.0:
             numb = 1.0
             # get indexes of non-normal class

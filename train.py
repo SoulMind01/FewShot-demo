@@ -5,7 +5,6 @@ from dataset import *
 class ARGUMENTS:
     def __init__(
         self,
-        model_type: str,
         normal_class: int,
         num_ref: int,
         num_ref_eval: int,
@@ -23,8 +22,8 @@ class ARGUMENTS:
         dataset: str,
         distance_method: str,
         evaluation_method: str = None,
+        model: VGG16 = None,
     ):
-        self.model_type = model_type
         self.normal_class = normal_class
         self.num_ref = num_ref
         self.num_ref_eval = num_ref_eval
@@ -42,6 +41,7 @@ class ARGUMENTS:
         self.dataset = dataset
         self.distance_method = distance_method
         self.evaluation_method = evaluation_method
+        self.model = model
 
 
 def train(
@@ -56,7 +56,6 @@ def train(
             yield lst[i : i + n]
 
     def dist(output1, vector, label=0):
-        # dist: 1,2,3,infinity,cosine
         device = "cuda" if torch.cuda.is_available() else "cpu"
         d_norm2 = F.pairwise_distance(output1, vector).to(device)
         d_norm1 = torch.sum(torch.pow(torch.abs(output1 - vector), 1)).to(device)
@@ -265,15 +264,33 @@ def train(
         data_path=data_path,
         download_data=False,
     )
+    indexes_ref = create_reference(
+        args.contamination,
+        args.dataset,
+        args.normal_class,
+        "train",
+        data_path,
+        False,
+        args.num_ref_eval,
+        args.seed,
+    )
     ref_dataset = load_dataset(
         args.dataset,
-        indexes,
+        indexes_ref,
         args.normal_class,
         task="train",
         data_path=data_path,
         download_data=False,
     )
-    model = FASHION_VGG3_pre(args.vector_size, args.biases, args.dataset)
+    model = args.model
+    inner_vector_size = {
+        "fashion": 2304,
+        "mnist": 2304,
+        "cifar10": 4096,
+    }
+    model.classifier = nn.Linear(
+        inner_vector_size[args.dataset], args.vector_size, bias=args.biases
+    )
 
     # put the model to the device
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -388,7 +405,6 @@ def train(
                     labels.append(label)
                     total = 0
                     mini = torch.Tensor([1e20])
-                    t1 = time.time()
                     out = model.forward(image.to(device).float())
 
                     # calculate the distance from the test image to each of the datapoints in the reference set
