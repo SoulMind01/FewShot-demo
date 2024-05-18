@@ -285,7 +285,7 @@ def do_experiment(
     class_range: list = np.arange(0, 10, 1),
     quick_run: bool = False,
     test_experiment: bool = False,
-    boxplot: bool = False,
+    boxplot: bool = True,
 ):
     results = init_result_dicts()
     if os.path.exists(experiment_name):
