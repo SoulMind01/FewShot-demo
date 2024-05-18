@@ -1,6 +1,8 @@
 import train
 from train import *
-google_drive_path = '/content/drive/MyDrive/FewShot-demo'
+
+google_drive_path = "/content/drive/MyDrive/FewShot-demo"
+
 
 def init_args() -> ARGUMENTS:
     args = ARGUMENTS(
@@ -271,7 +273,6 @@ def is_colab():
     for key in os.environ.keys():
         if "COLAB" in key:
             return True
-            break
     return False
 
 
