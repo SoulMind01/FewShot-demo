@@ -9,7 +9,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 
-from evaluate import make_predictions_by_anormaly_score
+from evaluate import (
+    make_predictions_by_anormaly_score,
+    make_predictions_by_closest_dist,
+)
 
 
 def train(
@@ -24,8 +27,8 @@ def train(
         tuple[pd.DataFrame, float, float, float, float, float, VGG16]: The predictions, the AUC, the F1 score, the specificity, the recall, the accuracy, and the model.
     """
     assert (
-        args.evaluation_method == "anomaly_score"
-    ), "evaluation_method must be 'anomaly_score'"
+        args.evaluation_method in ["anomaly_score", "closest_dist"]
+    ), "evaluation_method must be either 'anomaly_score' or 'closest_dist'"
 
     def create_batches(lst, n):
         for i in range(0, len(lst), n):
@@ -312,6 +315,13 @@ def train(
             ref_dataset=ref_dataset,
             val_dataset=val_dataset,
             anchor=anchor,
+        )
+    else:
+        return make_predictions_by_closest_dist(
+            args=args,
+            model=model,
+            class_size=small // (args.num_ref_eval / (args.num_ref_eval + args.k) * 10),
+            test_ratio=args.num_ref_eval / (args.num_ref_eval + args.k),
         )
     #         model.eval()
     #

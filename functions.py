@@ -106,7 +106,7 @@ def analyze_results(
                 value = [np.mean(value[key]) for key in value]
                 plt.plot(x_axis, value, label=key, marker=markers.pop(0))
         plt.legend(loc="upper left", bbox_to_anchor=(1, 1))
-        plt.subplots_adjust(wspace=0.15, hspace=0.7)
+        plt.subplots_adjust(wspace=0.35, hspace=0.7)
 
 
 def transpose_results_dimension(results: dict, class_range: np.ndarray) -> dict:
@@ -191,6 +191,9 @@ def analyze_results_with_box(
                         plt.xlabel(f"{feature_name} (/{ratio})")
                 else:
                     plt.xlabel(feature_name)
+            plt.savefig(
+                f"{feature_name}_experiment/{feature_name}_experiment_{dataset}.png"
+            )
 
 
 def plot_hist(results: dict):
@@ -315,6 +318,7 @@ def do_experiment(
     figure_size: tuple = (20, 4),
     box_width: float = 0.5,
     specify_xticks: np.ndarray = None,
+    lock_feature: bool = False,
 ):
     i = 1
     results = init_result_dicts()
@@ -333,21 +337,20 @@ def do_experiment(
                 results[dataset]["acc"][feature] = []
                 for class_ in class_range:
                     reset_args(args)
-                    if not "class" in feature_name:
-                        args.normal_class = class_
                     args.dataset_name = dataset
-                    setattr(args, feature_name, feature)
+                    if not lock_feature:
+                        setattr(args, feature_name, feature)
                     print(f"dataset: {dataset}, feature: {feature}, class: {class_}")
                     if test_experiment:
                         # assign 6 random values to the feature
                         df, auc, f1, spec, recall, acc, _ = (
-                            1 + class_,
-                            2 + class_,
-                            3 + class_,
-                            4 + class_,
-                            5 + class_,
-                            6 + class_,
-                            7 + class_,
+                            1 + class_ + np.random.random(),
+                            2 + class_ + np.random.random(),
+                            3 + class_ + np.random.random(),
+                            4 + class_ + np.random.random(),
+                            5 + class_ + np.random.random(),
+                            6 + class_ + np.random.random(),
+                            None,
                         )
                         i += 1
                     else:

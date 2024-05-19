@@ -76,6 +76,4 @@ def reset_args(args: ARGUMENTS) -> ARGUMENTS:
     args.contamination = 0
     args.batch_size = 1
     args.biases = 1
-    args.dataset = "fashion"
-    args.distance_method = "multi"
     return args

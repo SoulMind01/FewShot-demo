@@ -6,6 +6,12 @@ import pandas as pd
 import numpy as np
 from sklearn import metrics
 from sklearn.metrics import f1_score, roc_curve
+from sklearn.model_selection import train_test_split
+from closest_dist_functions import (
+    get_feature_embeddings,
+    get_closest_class,
+    construct_fewshot_dataloader,
+)
 
 
 def make_predictions_by_anormaly_score(
@@ -119,5 +125,73 @@ def make_predictions_by_anormaly_score(
     acc = (tp + tn) / (tp + tn + fp + fn)
     print(
         f"auc: {auc:.4f}, f1: {f1:.4f}, spec: {specficity:.4f}, recall: {recall:.4f}, acc: {acc:.4f}"
+    )
+    return df, auc, f1, specficity, recall, acc, model
+
+
+def make_predictions_by_closest_dist(
+    args: ARGUMENTS,
+    model: nn.Module,
+    class_size: int = 50,
+    test_ratio: float = 0.1,
+) -> tuple[pd.DataFrame, float, float, float, float, float, nn.Module]:
+    model = model.to("cpu")
+    dataset_name = args.dataset_name
+    image_num_per_class = [class_size] * 10
+    assert len(image_num_per_class) == 10
+    dataloader = construct_fewshot_dataloader(dataset_name, image_num_per_class)
+    embeddings, labels = get_feature_embeddings(model, dataloader)
+    train_embeddings, test_embeddings, train_labels, test_labels = train_test_split(
+        embeddings,
+        labels,
+        test_size=test_ratio,
+        random_state=args.seed,
+    )
+    # make query for every class
+    pred_labels = []
+    min_dists = []
+    # assert all classes in the test set are in the train set
+    assert np.all(np.isin(np.unique(test_labels), np.unique(train_labels)))
+    for test_vector in test_embeddings:
+        pred, min_dist = get_closest_class(
+            embeddings=train_embeddings, labels=train_labels, query=test_vector
+        )
+        pred_labels.append(pred)
+        min_dists.append(min_dist)
+
+    # mark label to 0 if label = args.normal_class else 1
+    pred_labels = np.array(pred_labels)
+    test_labels = np.array(test_labels)
+    (
+        pred_labels[pred_labels != args.normal_class],
+        pred_labels[pred_labels == args.normal_class],
+    ) = (1, 0)
+    (
+        test_labels[test_labels != args.normal_class],
+        test_labels[test_labels == args.normal_class],
+    ) = (1, 0)
+
+    # get performance statistics
+    fpr, tpr, _ = roc_curve(test_labels, pred_labels)
+    auc = metrics.auc(fpr, tpr)
+    f1 = f1_score(test_labels, pred_labels)
+    fp = len(np.where((pred_labels == 1) & (test_labels == 0))[0])
+
+    tp = len(np.where((pred_labels == 1) & (test_labels == 1))[0])
+    tn = len(np.where((pred_labels == 0) & (test_labels == 0))[0])
+    fn = len(np.where((pred_labels == 0) & (test_labels == 1))[0])
+    specficity = tn / (tn + fp)
+    recall = tp / (tp + fn)
+    acc = (tp + tn) / (tp + tn + fp + fn)
+    print(
+        f"auc: {auc:.4f}, f1: {f1:.4f}, spec: {specficity:.4f}, recall: {recall:.4f}, acc: {acc:.4f}"
+    )
+
+    df = pd.DataFrame(
+        {
+            "label": test_labels,
+            "pred": pred_labels,
+            "min_dist": min_dists,
+        }
     )
     return df, auc, f1, specficity, recall, acc, model
