@@ -1,25 +1,12 @@
 import torch
 import numpy as np
-import pandas as pd
-import torch.nn.functional as F
-import torch.optim as optim
 import random
-import time
-from sklearn import metrics
-from sklearn.metrics import roc_curve
-from sklearn.metrics import f1_score
-import matplotlib.pyplot as plt
-from sklearn.manifold import TSNE
 from torchvision.datasets.utils import download_and_extract_archive, check_integrity
 import torch.utils.data as data
 import codecs
-from torch import nn
-from torchvision import models
-import matplotlib.patches as mpatches
 import os
 import pickle
 from urllib.error import URLError
-import shutil
 
 
 class FASHION(data.Dataset):

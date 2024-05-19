@@ -1,10 +1,6 @@
-import sys
-
-print(sys.executable)
 import torch
 import torch.nn as nn
 from torchvision import models
-import torch.nn.functional as F
 
 
 class VGG16(nn.Module):

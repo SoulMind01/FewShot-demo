@@ -1,50 +1,13 @@
 import train
 from train import *
+from arguments import ARGUMENTS
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from arguments import reset_args
+from tqdm import tqdm
 
 google_drive_path = "/content/drive/MyDrive/FewShot-demo"
-
-
-def init_args() -> ARGUMENTS:
-    args = ARGUMENTS(
-        normal_class=7,
-        num_ref=10,
-        num_ref_eval=5,  # size of reference set while testing
-        lr=1e-5,
-        vector_size=1024,
-        weight_decay=0.001,  # done
-        seed=42,
-        weight_init_seed=42,
-        alpha=0.15,  # done
-        k=3,  # size of reference set while training
-        epochs=10,
-        contamination=0,  # done
-        batch_size=1,
-        biases=1,
-        dataset="fashion",
-        distance_method="multi",
-        model=VGG16(vector_size=1024, biases=1, dataset_name="cifar10"),
-    )
-    return args
-
-
-def reset_args(args: ARGUMENTS) -> ARGUMENTS:
-    args.normal_class = 7
-    args.num_ref = 10
-    args.num_ref_eval = 5
-    args.lr = 1e-5
-    args.vector_size = 1024
-    args.weight_decay = 0.001
-    args.seed = 42
-    args.weight_init_seed = 42
-    args.alpha = 0.15
-    args.k = 3
-    args.epochs = 10
-    args.contamination = 0
-    args.batch_size = 1
-    args.biases = 1
-    args.dataset = "fashion"
-    args.distance_method = "multi"
-    return args
 
 
 def analyze_result(
@@ -96,9 +59,13 @@ def analyze_result(
 
 
 def analyze_results(
-    results: dict, x_axis: list, feature_name: str, x_log_scale: bool = False
+    results: dict,
+    x_axis: list,
+    feature_name: str,
+    x_log_scale: bool = False,
+    figure_size: tuple = (16, 4),
 ):
-    plt.figure(figsize=(16, 4))
+    plt.figure(figsize=figure_size)
     plt.suptitle(f"Performance along {feature_name}")
     markers = [
         "o",
@@ -139,15 +106,49 @@ def analyze_results(
                 value = [np.mean(value[key]) for key in value]
                 plt.plot(x_axis, value, label=key, marker=markers.pop(0))
         plt.legend(loc="upper left", bbox_to_anchor=(1, 1))
-        plt.subplots_adjust(wspace=0.5)
+        plt.subplots_adjust(wspace=0.15, hspace=0.7)
+
+
+def transpose_results_dimension(results: dict, class_range: np.ndarray) -> dict:
+    # original: results[dataset][stat][feature_value]=[value0, value1, ..., valueN]
+    # new: results[dataset][stat][class]=[v_feature0, v_feature1, ..., v_featureN]
+    new_results = {}
+    for dataset in results.keys():
+        new_results[dataset] = {}
+        for stat in results[dataset].keys():
+            new_results[dataset][stat] = {}
+            for class_ in range(len(class_range)):
+                new_results[dataset][stat][class_] = []
+                if stat == "df":
+                    continue
+                for feature_value in results[dataset][stat].keys():
+                    new_results[dataset][stat][class_].append(
+                        results[dataset][stat][feature_value][class_]
+                    )
+    return new_results
 
 
 def analyze_results_with_box(
-    results: dict, x_axis: list, feature_name: str, x_log_scale: bool = False
+    results: dict,
+    x_axis: list,
+    feature_name: str,
+    class_range: np.ndarray,
+    x_log_scale: bool = False,
+    figure_size: tuple = (16, 5),
+    labels: np.ndarray = None,
+    box_width: float = 0.5,
+    positions: np.ndarray = None,
 ):
+    colors = {
+        "auc": "blue",
+        "f1": "green",
+        "spec": "red",
+        "recall": "purple",
+        "acc": "orange",
+    }
     # 5 different performances subplots for each dataset
     for dataset, dataset_results in results.items():
-        plt.figure(figsize=(20, 4))
+        plt.figure(figsize=figure_size)
         plt.suptitle(f"Performance along {feature_name} of {dataset} dataset")
 
         # remove key df from the results
@@ -156,24 +157,40 @@ def analyze_results_with_box(
         for key, value in dataset_results.items():
             # assign a subplot for each feature
             plt.subplot(1, 5, list(dataset_results.keys()).index(key) + 1)
-            plt.subplots_adjust(wspace=0.5)
+            plt.subplots_adjust(wspace=0.15, hspace=0.7)
             plt.title(key)
+            color = colors[key]
+
             if x_log_scale:
-                # plt.semilogx(x_axis, value, label=key, marker=markers.pop(0))
                 plt.boxplot(
                     [value[key] for key in value],
-                    positions=x_axis,
                     patch_artist=True,
-                    labels=[key for key in value],
+                    # labels=[key for key in value],
+                    widths=box_width,
+                    boxprops=dict(facecolor=color),
+                    positions=labels,
                 )
                 plt.xscale("log")
             else:
                 plt.boxplot(
                     [value[key] for key in value],
-                    positions=x_axis,
                     patch_artist=True,
-                    labels=[key for key in value],
+                    # labels=([key for key in value] if labels is None else labels),
+                    widths=box_width,
+                    boxprops=dict(facecolor=color),
+                    positions=labels,
                 )
+                # print the unit of the scaled x-axis
+                if labels is not None:
+                    dx = labels[1] - labels[0]
+                    dfeature = x_axis[1] - x_axis[0]
+                    ratio = dx / dfeature if dx > dfeature else dfeature / dx
+                    if dx > dfeature:
+                        plt.xlabel(f"{feature_name} (x{ratio})")
+                    else:
+                        plt.xlabel(f"{feature_name} (/{ratio})")
+                else:
+                    plt.xlabel(feature_name)
 
 
 def plot_hist(results: dict):
@@ -231,8 +248,8 @@ def load_results(results_path: str) -> tuple[dict, bool]:
             is_widebox = len(tmp) != 1
             if is_widebox:
                 results[dataset][feature] = {}
-                for i, key in enumerate(tmp):
-                    results[dataset][feature][key] = tmp[i]
+                for i in tmp:
+                    results[dataset][feature][i] = tmp[i]
             else:
                 results[dataset][feature] = tmp
     return results, is_widebox
@@ -243,8 +260,12 @@ def report_results(
     experiment_name: str,
     feature_name: str,
     feature_range: list,
+    class_range: np.ndarray,
     google_drive_path: str = None,
     box_plot: bool = False,
+    figure_size: tuple = (16, 4),
+    box_width: float = 0.5,
+    specify_xticks: np.ndarray = None,
 ):
     if not os.path.exists(experiment_name):
         os.mkdir(experiment_name)
@@ -253,7 +274,11 @@ def report_results(
             results,
             feature_range,
             feature_name.capitalize(),
-            x_log_scale=True if "earning" in feature_name else False,  # lr
+            class_range,
+            x_log_scale=False,
+            figure_size=figure_size,
+            box_width=box_width,
+            labels=specify_xticks,
         )
     else:
         analyze_results(
@@ -261,6 +286,7 @@ def report_results(
             feature_range,
             feature_name.capitalize(),
             x_log_scale=True if "earning" in feature_name else False,  # lr
+            figure_size=figure_size,
         )
     plt.savefig(f"{experiment_name}/{feature_name}_experiment.png")
     save_results(results, experiment_name)
@@ -281,18 +307,22 @@ def do_experiment(
     experiment_name: str,
     feature_name: str,
     feature_range: list,
+    class_range: np.ndarray = np.arange(0, 10),
     num_test_data: int = 0,
-    class_range: list = np.arange(0, 10, 1),
     quick_run: bool = False,
     test_experiment: bool = False,
     boxplot: bool = True,
+    figure_size: tuple = (20, 4),
+    box_width: float = 0.5,
+    specify_xticks: np.ndarray = None,
 ):
+    i = 1
     results = init_result_dicts()
     if os.path.exists(experiment_name):
         results, _ = load_results(experiment_name)
         print("Results loaded from file")
     else:
-        for feature in feature_range:
+        for feature in tqdm(feature_range, desc=f"Running {experiment_name}"):
             for dataset in results.keys():
                 best_df = None
                 best_auc = 0
@@ -305,13 +335,23 @@ def do_experiment(
                     reset_args(args)
                     if not "class" in feature_name:
                         args.normal_class = class_
-                    args.dataset = dataset
+                    args.dataset_name = dataset
                     setattr(args, feature_name, feature)
+                    print(f"dataset: {dataset}, feature: {feature}, class: {class_}")
                     if test_experiment:
                         # assign 6 random values to the feature
-                        df, auc, f1, spec, recall, acc = np.random.rand(6) * 3
+                        df, auc, f1, spec, recall, acc, _ = (
+                            1 + class_,
+                            2 + class_,
+                            3 + class_,
+                            4 + class_,
+                            5 + class_,
+                            6 + class_,
+                            7 + class_,
+                        )
+                        i += 1
                     else:
-                        df, auc, f1, spec, recall, acc = train(args, num_test_data)
+                        df, auc, f1, spec, recall, acc, _ = train(args, num_test_data)
 
                     if quick_run:
                         return
@@ -331,6 +371,10 @@ def do_experiment(
         experiment_name,
         feature_name,
         feature_range,
+        class_range,
         google_drive_path,
         boxplot,
+        figure_size=figure_size,
+        box_width=box_width,
+        specify_xticks=specify_xticks,
     )
