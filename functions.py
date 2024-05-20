@@ -101,7 +101,9 @@ def analyze_averaged_results(
             if key == "df" or "df" in key:
                 continue
             if x_log_scale:
-                plt.semilogx(x_axis, value, label=key, marker=markers.pop(0))
+                value = [np.mean(value[key]) for key in value]
+                plt.plot(x_axis, value, label=key, marker=markers.pop(0))
+                plt.xscale("log")
             else:
                 value = [np.mean(value[key]) for key in value]
                 plt.plot(x_axis, value, label=key, marker=markers.pop(0))
