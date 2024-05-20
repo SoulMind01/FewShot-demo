@@ -322,7 +322,7 @@ def do_experiment(
     experiment_name = f"{experiment_name}_{args.evaluation_method}"
     i = 1
     results = init_result_dicts()
-    if os.path.exists(experiment_name) and not os.listdir(experiment_name):
+    if os.path.exists(experiment_name) and os.listdir(experiment_name):
         results, _ = load_results(experiment_name)
         print("Results loaded from file")
     else:
