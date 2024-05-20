@@ -58,7 +58,7 @@ def analyze_result(
     plt.grid()
 
 
-def analyze_results(
+def analyze_averaged_results(
     results: dict,
     x_axis: list,
     feature_name: str,
@@ -131,6 +131,7 @@ def transpose_results_dimension(results: dict, class_range: np.ndarray) -> dict:
 def analyze_results_with_box(
     results: dict,
     x_axis: list,
+    experiment_name: str,
     feature_name: str,
     class_range: np.ndarray,
     x_log_scale: bool = False,
@@ -191,9 +192,7 @@ def analyze_results_with_box(
                         plt.xlabel(f"{feature_name} (/{ratio})")
                 else:
                     plt.xlabel(feature_name)
-            plt.savefig(
-                f"{feature_name}_experiment/{feature_name}_experiment_{dataset}.png"
-            )
+            plt.savefig(f"{experiment_name}/{feature_name}_experiment_{dataset}.png")
 
 
 def plot_hist(results: dict):
@@ -269,29 +268,29 @@ def report_results(
     figure_size: tuple = (16, 4),
     box_width: float = 0.5,
     specify_xticks: np.ndarray = None,
+    save_path: str = "",
 ):
     if not os.path.exists(experiment_name):
         os.mkdir(experiment_name)
-    if box_plot:
-        analyze_results_with_box(
-            results,
-            feature_range,
-            feature_name.capitalize(),
-            class_range,
-            x_log_scale=False,
-            figure_size=figure_size,
-            box_width=box_width,
-            labels=specify_xticks,
-        )
-    else:
-        analyze_results(
-            results,
-            feature_range,
-            feature_name.capitalize(),
-            x_log_scale=True if "earning" in feature_name else False,  # lr
-            figure_size=figure_size,
-        )
-    plt.savefig(f"{experiment_name}/{feature_name}_experiment.png")
+    analyze_results_with_box(
+        results,
+        feature_range,
+        experiment_name,
+        feature_name.capitalize(),
+        class_range,
+        x_log_scale=False,
+        figure_size=figure_size,
+        box_width=box_width,
+        labels=specify_xticks,
+    )
+    analyze_averaged_results(
+        results,
+        feature_range,
+        feature_name.capitalize(),
+        x_log_scale=True if "earning" in feature_name else False,  # lr
+        figure_size=figure_size,
+    )
+    plt.savefig(f"{experiment_name}/{experiment_name}.png")
     save_results(results, experiment_name)
 
     if is_colab():
@@ -320,9 +319,10 @@ def do_experiment(
     specify_xticks: np.ndarray = None,
     lock_feature: bool = False,
 ):
+    experiment_name = f"{experiment_name}_{args.evaluation_method}"
     i = 1
     results = init_result_dicts()
-    if os.path.exists(experiment_name):
+    if os.path.exists(experiment_name) and not os.listdir(experiment_name):
         results, _ = load_results(experiment_name)
         print("Results loaded from file")
     else:
@@ -340,7 +340,7 @@ def do_experiment(
                     args.dataset_name = dataset
                     if not lock_feature:
                         setattr(args, feature_name, feature)
-                    print(f"dataset: {dataset}, feature: {feature}, class: {class_}")
+                    # print(f"dataset: {dataset}, feature: {feature}, class: {class_}")
                     if test_experiment:
                         # assign 6 random values to the feature
                         df, auc, f1, spec, recall, acc, _ = (
