@@ -148,8 +148,13 @@ class MyDataset(torch.utils.data.Dataset):
         self.labels = labels
 
     def __getitem__(self, index):
-        # duplicate the image to have 3 channels
-        return self.dataset[index].repeat(3, 1, 1), self.labels[index]
+        # Check the dataset name and return the correct shape
+        if self.dataset_name in ["mnist", "fashion"]:
+            # For MNIST and FashionMNIST, duplicate the image to have 3 channels
+            return self.dataset[index].repeat(3, 1, 1), self.labels[index]
+        else:
+            # For CIFAR10, the images already have 3 channels
+            return self.dataset[index], self.labels[index]
 
     def __len__(self):
         return len(self.dataset)
