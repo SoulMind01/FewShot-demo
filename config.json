@@ -1,14 +1,11 @@
 {
   "features": [
-    "class",
     "epochs",
     "alpha",
     "contamination",
     "N",
     "k",
     "num_ref_eval",
-    "weight_decay",
-    "learning_rate",
     "vector_size"
   ],
   "feature_ranges": {

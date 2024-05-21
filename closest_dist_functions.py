@@ -1,33 +1,55 @@
 import torch
 from torchvision import datasets, transforms
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.utils.data
+import sys
+import io
+
+
+def check_and_download(dataset_name: str):
+    """Check if dataset exists locally, if not download it."""
+    data_dir = "./data"
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+
+    # Capture the standard output
+    old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
+
+    try:
+        if dataset_name == "mnist":
+            dataset = datasets.MNIST(
+                root=data_dir,
+                train=False,
+                download=not os.path.exists(os.path.join(data_dir, "MNIST")),
+                transform=transforms.ToTensor(),
+            )
+        elif dataset_name == "fashion":
+            dataset = datasets.FashionMNIST(
+                root=data_dir,
+                train=False,
+                download=not os.path.exists(os.path.join(data_dir, "FashionMNIST")),
+                transform=transforms.ToTensor(),
+            )
+        elif dataset_name == "cifar10":
+            dataset = datasets.CIFAR10(
+                root=data_dir,
+                train=False,
+                download=not os.path.exists(os.path.join(data_dir, "CIFAR10")),
+                transform=transforms.ToTensor(),
+            )
+    finally:
+        # Restore the standard output
+        sys.stdout = old_stdout
+
+    return dataset
 
 
 def get_image(dataset: str, class_type: int) -> torch.Tensor:
-    """randomly select an image index from the dataset with the given class_type"""
-    dataset = (
-        datasets.MNIST(
-            root="./data", train=False, download=True, transform=transforms.ToTensor()
-        )
-        if dataset == "mnist"
-        else (
-            datasets.FashionMNIST(
-                root="./data",
-                train=False,
-                download=True,
-                transform=transforms.ToTensor(),
-            )
-            if dataset == "fashion"
-            else datasets.CIFAR10(
-                root="./data",
-                train=False,
-                download=True,
-                transform=transforms.ToTensor(),
-            )
-        )
-    )
+    """Randomly select an image index from the dataset with the given class_type"""
+    dataset = check_and_download(dataset)
 
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
     for data, target in dataloader:
@@ -36,23 +58,13 @@ def get_image(dataset: str, class_type: int) -> torch.Tensor:
 
 
 def get_images(dataset: str, class_type: int, num_images: int) -> list:
-    """randomly select num_images images from the dataset with the given class_type
+    """Randomly select num_images images from the dataset with the given class_type
     and return them as a tensor of shape (num_images, 1, 28, 28) and a list of labels
     """
     images = []
     labels = []
-    if dataset == "cifar10":
-        dataset_ = datasets.CIFAR10(
-            root="./data", train=False, download=True, transform=transforms.ToTensor()
-        )
-    elif dataset == "mnist":
-        dataset_ = datasets.MNIST(
-            root="./data", train=False, download=True, transform=transforms.ToTensor()
-        )
-    else:
-        dataset_ = datasets.FashionMNIST(
-            root="./data", train=False, download=True, transform=transforms.ToTensor()
-        )
+    dataset_ = check_and_download(dataset)
+
     dataloader = torch.utils.data.DataLoader(dataset_, batch_size=1, shuffle=True)
     for data, target in dataloader:
         if target.item() == class_type and len(images) < num_images:
@@ -77,7 +89,7 @@ def visualize_imags(dataset: str, class_type: int, num_images: int):
     images, labels = get_images(dataset, class_type, num_images)
     plt.figure(figsize=(10, 10))
     plt.suptitle(f"class {get_class_name(dataset, class_type)} in {dataset}")
-    # arange the images like a square grid as much as possible
+    # Arrange the images like a square grid as much as possible
     grid_size = int(np.ceil(np.sqrt(num_images)))
     for i in range(num_images):
         plt.subplot(grid_size, grid_size, i + 1)
@@ -164,14 +176,14 @@ def visualize_dataset_(dataset: MyDataset, num_images: int):
     labels = dataset.labels
     plt.figure(figsize=(10, 10))
     plt.suptitle(f"Dataset Visualization")
-    # arange the images like a square grid as much as possible
+    # Arrange the images like a square grid as much as possible
     grid_size = int(np.ceil(np.sqrt(num_images)))
     length = min(len(dataset.dataset), num_images)
     for i in range(length):
         plt.subplot(grid_size, grid_size, i + 1)
         class_name = get_class_name(dataset.dataset_name, labels[i])
         plt.title(class_name)
-        # convert the tensor to numpy array and transpose the dimensions
+        # Convert the tensor to numpy array and transpose the dimensions
         image = dataset[i][0].numpy().transpose((1, 2, 0))
         plt.imshow(image, cmap="gray")
         plt.axis("off")
@@ -192,14 +204,14 @@ def get_feature_embeddings(model, dataloader):
 
 
 def calculate_dist(x: np.ndarray, y: np.ndarray) -> float:
-    """calculate the euclidean distance between two vectors"""
+    """Calculate the euclidean distance between two vectors"""
     return np.linalg.norm(x - y)
 
 
 def get_closest_class(
     embeddings: np.ndarray, labels: np.ndarray, query: np.ndarray
 ) -> int:
-    """return the class of the closest embedding to the query"""
+    """Return the class of the closest embedding to the query"""
     distances = np.array([calculate_dist(query, embedding) for embedding in embeddings])
     closest_index = np.argmin(distances)
     min_dist = distances[closest_index]

@@ -220,7 +220,7 @@ def plot_hist(results: dict):
 
 def init_result_dicts():
     features = ["df", "auc", "f1", "spec", "recall", "acc"]
-    datasets = ["fashion", "mnist", "cifar10"]
+    datasets = ["cifar10", "fashion", "mnist"]
     result_dicts = {}
     for dataset in datasets:
         result_dicts[dataset] = {}
