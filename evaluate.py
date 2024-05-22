@@ -120,9 +120,9 @@ def make_predictions_by_anormaly_score(
     tp = len(df.loc[(preds == 1) & (df["label"] == 1)])
     tn = len(df.loc[(preds == 0) & (df["label"] == 0)])
     fn = len(df.loc[(preds == 0) & (df["label"] == 1)])
-    specficity = tn / (tn + fp)
-    recall = tp / (tp + fn)
-    acc = (tp + tn) / (tp + tn + fp + fn)
+    specficity = tn / (tn + fp) if tn + fp != 0 else 0
+    recall = tp / (tp + fn) if tp + fn != 0 else 0
+    acc = (tp + tn) / (tp + tn + fp + fn) if tp + tn + fp + fn != 0 else 0
     print(
         f"auc: {auc:.4f}, f1: {f1:.4f}, spec: {specficity:.4f}, recall: {recall:.4f}, acc: {acc:.4f}"
     )
@@ -180,9 +180,9 @@ def make_predictions_by_closest_dist(
     tp = len(np.where((pred_labels == 1) & (test_labels == 1))[0])
     tn = len(np.where((pred_labels == 0) & (test_labels == 0))[0])
     fn = len(np.where((pred_labels == 0) & (test_labels == 1))[0])
-    specficity = tn / (tn + fp)
-    recall = tp / (tp + fn)
-    acc = (tp + tn) / (tp + tn + fp + fn)
+    specficity = tn / (tn + fp) if tn + fp != 0 else 0
+    recall = tp / (tp + fn) if tp + fn != 0 else 0
+    acc = (tp + tn) / (tp + tn + fp + fn) if tp + tn + fp + fn != 0 else 0
     print(
         f"auc: {auc:.4f}, f1: {f1:.4f}, spec: {specficity:.4f}, recall: {recall:.4f}, acc: {acc:.4f}"
     )
