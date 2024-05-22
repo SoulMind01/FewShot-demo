@@ -5,14 +5,20 @@ from torchvision import models
 
 class VGG16(nn.Module):
 
-    def __init__(self, vector_size, biases, dataset_name):
+    def __init__(
+        self,
+        vector_size: int,
+        biases: int,
+        dataset_name: str,
+        activation_function: str,
+    ):
         inner_vector_size = {}
         inner_vector_size["fashion"] = 2304
         inner_vector_size["mnist"] = 2304
         inner_vector_size["cifar10"] = 4096
         super(VGG16, self).__init__()
         trained = True
-        self.act = nn.LeakyReLU()
+        self.act = nn.LeakyReLU() if activation_function == "LeakyReLU" else nn.ReLU()
         self.block1 = models.vgg16(pretrained=trained).features[0]
         self.block1.bias.requires_grad = False
         self.bn1 = nn.BatchNorm2d(64, eps=1e-04, affine=False)

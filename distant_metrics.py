@@ -26,11 +26,26 @@ def dist(output1, vector, label=0):
     return sum
 
 
+def L1_dist(vec1, vec2):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return torch.sum(torch.abs(vec1 - vec2)).to(device)
+
+
 def L2_dist(vec1, vec2):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     return F.pairwise_distance(vec1, vec2).to(device)
 
 
-def L1_dist(vec1, vec2):
+def L3_dist(vec1, vec2):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    return torch.sum(torch.abs(vec1 - vec2)).to(device)
+    return torch.sum(torch.pow(torch.abs(vec1 - vec2), 3)).to(device)
+
+
+def L4_dist(vec1, vec2):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return torch.sum(torch.pow(torch.abs(vec1 - vec2), 4)).to(device)
+
+
+def L_inf(vec1, vec2):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return torch.max(torch.abs(vec1 - vec2)).to(device)

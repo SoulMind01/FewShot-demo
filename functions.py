@@ -132,6 +132,34 @@ def transpose_results_dimension(results: dict, class_range: np.ndarray) -> dict:
     return new_results
 
 
+def scatter_results(
+    results: dict, stats: list, experiment_name: str, figure_size: tuple = (15, 5)
+):
+    assert len(stats) == 2  # scatter plot only visualize 2 stats
+    fig, ax = plt.subplots(1, len(results.keys()), figsize=figure_size)
+
+    if len(results.keys()) == 1:
+        ax = [ax]
+
+    for i, dataset in enumerate(results.keys()):
+        # x: stat1, y: stat2
+        labels = results[dataset][stats[0]].keys()
+        x_axis = results[dataset][stats[0]]
+        y_axis = results[dataset][stats[1]]
+        for label in labels:
+            x = np.nanmean(x_axis[label])
+            y = np.nanmean(y_axis[label])
+            ax[i].scatter(x, y, label=label)
+        ax[i].set_xlabel(stats[0])
+        ax[i].set_ylabel(stats[1])
+        ax[i].set_title(f"{dataset}")
+        ax[i].legend(loc="upper right", bbox_to_anchor=(1, 1))
+
+    plt.suptitle("averaged results (along classes)")
+    plt.tight_layout()
+    plt.savefig(f"{experiment_name}/Comparative experiment.png")
+
+
 def analyze_results_with_box(
     results: dict,
     x_axis: list,
@@ -221,13 +249,13 @@ def plot_hist(results: dict):
 
 
 def init_result_dicts():
-    features = ["df", "auc", "f1", "spec", "recall", "acc"]
+    stats = ["df", "auc", "f1", "spec", "recall", "acc"]
     datasets = ["cifar10", "fashion", "mnist"]
     result_dicts = {}
     for dataset in datasets:
         result_dicts[dataset] = {}
-        for feature in features:
-            result_dicts[dataset][feature] = {}
+        for stat in stats:
+            result_dicts[dataset][stat] = {}
     return result_dicts
 
 
@@ -272,6 +300,7 @@ def report_results(
     box_width: float = 0.5,
     specify_xticks: np.ndarray = None,
     save_path: str = "",
+    compare_stats: list = None,
 ):
     original_cwd = os.getcwd()
 
@@ -284,27 +313,29 @@ def report_results(
         if not os.path.exists(experiment_name):
             os.mkdir(experiment_name)
 
-        analyze_results_with_box(
-            results,
-            feature_range,
-            experiment_name,
-            feature_name,
-            class_range,
-            x_log_scale=False,
-            figure_size=figure_size,
-            box_width=box_width,
-            labels=specify_xticks,
-        )
+        if compare_stats is None:
+            analyze_results_with_box(
+                results,
+                feature_range,
+                experiment_name,
+                feature_name,
+                class_range,
+                x_log_scale=False,
+                figure_size=figure_size,
+                box_width=box_width,
+                labels=specify_xticks,
+            )
 
-        analyze_averaged_results(
-            experiment_name,
-            results,
-            feature_range,
-            feature_name,
-            x_log_scale=True if "earning" in feature_name else False,  # lr
-            figure_size=figure_size,
-        )
-
+            analyze_averaged_results(
+                experiment_name,
+                results,
+                feature_range,
+                feature_name,
+                x_log_scale=True if "earning" in feature_name else False,  # lr
+                figure_size=figure_size,
+            )
+        else:
+            scatter_results(results, compare_stats, experiment_name)
         save_results(results, experiment_name)
 
         if is_colab():
@@ -329,17 +360,21 @@ def do_experiment(
     num_test_data: int = 0,
     quick_run: bool = False,
     test_experiment: bool = False,
-    boxplot: bool = True,
     figure_size: tuple = (20, 4),
     box_width: float = 0.5,
     specify_xticks: np.ndarray = None,
     lock_feature: bool = False,
+    save_suffix: str = "",
+    compare_stats: list = None,
 ):
     experiment_name = f"{experiment_name}_{args.evaluation_method}"
     i = 1
     results = init_result_dicts()
-    if os.path.exists(experiment_name) and os.listdir(experiment_name):
-        results, _ = load_results(experiment_name)
+
+    # search saved results
+    find_path = f"{args.evaluation_method}_results/{experiment_name}"
+    if os.path.exists(find_path) and os.listdir(find_path):
+        results, _ = load_results(find_path)
         print("Results loaded from file")
     else:
         for feature in tqdm(feature_range, desc=f"Running {experiment_name}"):
@@ -396,5 +431,6 @@ def do_experiment(
         figure_size=figure_size,
         box_width=box_width,
         specify_xticks=specify_xticks,
-        save_path=f"{args.evaluation_method}_results",
+        save_path=f"{args.evaluation_method}_results{save_suffix}",
+        compare_stats=compare_stats,
     )

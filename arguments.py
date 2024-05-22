@@ -18,6 +18,7 @@ class ARGUMENTS:
         dataset_name: str,
         distance_method: str,
         evaluation_method: str = None,
+        activation_function: str = "LeakyReLU",
     ):
         self.normal_class = normal_class
         self.num_ref = num_ref
@@ -36,6 +37,7 @@ class ARGUMENTS:
         self.dataset_name = dataset_name
         self.distance_method = distance_method
         self.evaluation_method = evaluation_method
+        self.activation_function = activation_function
 
 
 def init_args() -> ARGUMENTS:

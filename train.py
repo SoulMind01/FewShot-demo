@@ -1,6 +1,6 @@
 from model import *
 from dataset import *
-from distant_metrics import L1_dist, L2_dist, dist
+from distant_metrics import L1_dist, L2_dist, L3_dist, L4_dist, L_inf, dist
 from arguments import ARGUMENTS
 import pandas as pd
 import numpy as np
@@ -26,16 +26,24 @@ def train(
     Returns:
         tuple[pd.DataFrame, float, float, float, float, float, VGG16]: The predictions, the AUC, the F1 score, the specificity, the recall, the accuracy, and the model.
     """
-    assert (
-        args.evaluation_method in ["anomaly_score", "closest_dist"]
-    ), "evaluation_method must be either 'anomaly_score' or 'closest_dist'"
+    assert args.evaluation_method in [
+        "anomaly_score",
+        "closest_dist",
+    ], "evaluation_method must be either 'anomaly_score' or 'closest_dist'"
 
     def create_batches(lst, n):
         for i in range(0, len(lst), n):
             yield lst[i : i + n]
 
     class DistLoss(torch.nn.Module):
-        def __init__(self, alpha, anchor, device, v=0.0, margin=0.8):
+        def __init__(
+            self,
+            alpha: float,
+            anchor: torch.Tensor,
+            device: str,
+            v: float = 0.0,
+            margin: float = 0.8,
+        ):
             super(DistLoss, self).__init__()
             self.margin = margin
             self.v = v
@@ -81,7 +89,16 @@ def train(
             return loss + sphericity_loss
 
     class ContrasstiveLoss(torch.nn.Module):
-        def __init__(self, alpha, anchor, device, v=0.0, margin=0.8):
+        def __init__(
+            self,
+            alpha: float,
+            anchor: torch.Tensor,
+            device: str,
+            v: float = 0.0,
+            margin=0.8,
+            distance_method: str = "L2",
+        ):
+
             super(ContrasstiveLoss, self).__init__()
             self.margin = margin
             self.v = v
@@ -89,11 +106,20 @@ def train(
             self.anchor = anchor
             self.device = device
 
+            distant_metrics = {
+                "L1": L1_dist,
+                "L2": L2_dist,
+                "L3": L3_dist,
+                "L4": L4_dist,
+                "inf": L_inf,
+            }
+            self.distant_metric = distant_metrics[distance_method]
+
         def forward(self, output1, vectors, label):
             # calculate the center of vectors
             center = torch.mean(torch.stack(vectors), dim=0)
             # calculate the distance between the center and all other vectors
-            distances = [L2_dist(center, i) for i in vectors]
+            distances = [self.distant_metric(center, i) for i in vectors]
             # use the variance of the distances as the spheicity loss
             sphericity_loss = (
                 torch.var(torch.stack(distances)) if len(vectors) > 1 else 0
@@ -104,7 +130,7 @@ def train(
             # get the distance between output1 and all other vectors
             for i in vectors:
                 euclidean_distance += (1 - self.alpha) * (
-                    L2_dist(output1, i)
+                    self.distant_metric(output1, i)
                     / torch.sqrt(torch.Tensor([output1.size()[1]])).to(self.device)
                 )
 
@@ -224,6 +250,7 @@ def train(
         vector_size=args.vector_size,
         biases=args.biases,
         dataset_name=args.dataset_name,
+        activation_function=args.activation_function,
     )
 
     # put the model to the device
@@ -241,7 +268,9 @@ def train(
     loss_fn = (
         DistLoss(args.alpha, anchor, device)
         if args.distance_method == "multi"
-        else ContrasstiveLoss(args.alpha, anchor, device)
+        else ContrasstiveLoss(
+            args.alpha, anchor, device, distance_method=args.distance_method
+        )
     )
     optimizer = (
         optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

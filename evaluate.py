@@ -67,7 +67,7 @@ def make_predictions_by_anormaly_score(
             dist_method = (
                 dist
                 if args.distance_method == "multi"
-                else L1_dist if args.distance_method == "l1" else L2_dist
+                else L1_dist if args.distance_method == "L1" else L2_dist
             )
 
             for j in range(num_ref_eval):
