@@ -59,6 +59,7 @@ def analyze_result(
 
 
 def analyze_averaged_results(
+    experiment_name: str,
     results: dict,
     x_axis: list,
     feature_name: str,
@@ -109,6 +110,7 @@ def analyze_averaged_results(
                 plt.plot(x_axis, value, label=key, marker=markers.pop(0))
         plt.legend(loc="upper left", bbox_to_anchor=(1, 1))
         plt.subplots_adjust(wspace=0.35, hspace=0.7)
+    plt.savefig(f"{experiment_name}/averaged_results.png")
 
 
 def transpose_results_dimension(results: dict, class_range: np.ndarray) -> dict:
@@ -266,37 +268,49 @@ def report_results(
     feature_range: list,
     class_range: np.ndarray,
     google_drive_path: str = None,
-    box_plot: bool = False,
     figure_size: tuple = (16, 4),
     box_width: float = 0.5,
     specify_xticks: np.ndarray = None,
     save_path: str = "",
 ):
-    if not os.path.exists(experiment_name):
-        os.mkdir(experiment_name)
-    analyze_results_with_box(
-        results,
-        feature_range,
-        experiment_name,
-        feature_name.capitalize(),
-        class_range,
-        x_log_scale=False,
-        figure_size=figure_size,
-        box_width=box_width,
-        labels=specify_xticks,
-    )
-    analyze_averaged_results(
-        results,
-        feature_range,
-        feature_name.capitalize(),
-        x_log_scale=True if "earning" in feature_name else False,  # lr
-        figure_size=figure_size,
-    )
-    plt.savefig(f"{experiment_name}/{experiment_name}.png")
-    save_results(results, experiment_name)
+    original_cwd = os.getcwd()
 
-    if is_colab():
-        os.system(f"cp -r {experiment_name} {google_drive_path}")
+    os.makedirs(save_path, exist_ok=True)
+
+    try:
+        os.chdir(save_path)
+        print(os.getcwd())
+
+        if not os.path.exists(experiment_name):
+            os.mkdir(experiment_name)
+
+        analyze_results_with_box(
+            results,
+            feature_range,
+            experiment_name,
+            feature_name,
+            class_range,
+            x_log_scale=False,
+            figure_size=figure_size,
+            box_width=box_width,
+            labels=specify_xticks,
+        )
+
+        analyze_averaged_results(
+            experiment_name,
+            results,
+            feature_range,
+            feature_name,
+            x_log_scale=True if "earning" in feature_name else False,  # lr
+            figure_size=figure_size,
+        )
+
+        save_results(results, experiment_name)
+
+        if is_colab():
+            os.system(f"cp -r {experiment_name} {google_drive_path}")
+    finally:
+        os.chdir(original_cwd)
 
 
 def is_colab():
@@ -379,8 +393,8 @@ def do_experiment(
         feature_range,
         class_range,
         google_drive_path,
-        boxplot,
         figure_size=figure_size,
         box_width=box_width,
         specify_xticks=specify_xticks,
+        save_path=f"{args.evaluation_method}_results",
     )

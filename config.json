@@ -3,7 +3,7 @@
     "epochs",
     "alpha",
     "contamination",
-    "N",
+    "num_ref",
     "k",
     "num_ref_eval",
     "vector_size"
@@ -29,7 +29,7 @@
       0.5,
       0.05
     ],
-    "N": [
+    "num_ref": [
       10,
       40,
       3
