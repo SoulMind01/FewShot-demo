@@ -1,6 +1,53 @@
 import torch
 import torch.nn as nn
 from torchvision import models
+import math
+import torch.nn.functional as F
+
+
+class Swish(nn.Module):
+    def forward(self, input):
+        return input * torch.sigmoid(input)
+
+
+class Mish(nn.Module):
+    def forward(self, input):
+        return input * torch.tanh(F.softplus(input))
+
+
+class GELU(nn.Module):
+    def forward(self, input):
+        return (
+            0.5
+            * input
+            * (
+                1
+                + torch.tanh(
+                    math.sqrt(2 / math.pi) * (input + 0.044715 * torch.pow(input, 3))
+                )
+            )
+        )
+
+
+def get_activation_function(activation_function: str):
+    # ['relu', 'sigmoid', 'tanh', 'leaky_relu', 'elu', 'selu', 'swish', 'mish', 'gelu', 'softplus', 'softsign', 'hard_sigmoid']
+    act_func_dict = {
+        "relu": nn.ReLU(),
+        "sigmoid": nn.Sigmoid(),
+        "tanh": nn.Tanh(),
+        "leaky_relu": nn.LeakyReLU(),
+        "elu": nn.ELU(),
+        "selu": nn.SELU(),
+        "swish": Swish(),
+        "mish": Mish(),
+        "gelu": GELU(),
+        "softplus": nn.Softplus(),
+        "softsign": nn.Softsign(),
+        "hard_sigmoid": nn.Hardsigmoid(),
+    }
+    assert activation_function in act_func_dict.keys()
+
+    return act_func_dict[activation_function]
 
 
 class VGG16(nn.Module):
@@ -18,7 +65,8 @@ class VGG16(nn.Module):
         inner_vector_size["cifar10"] = 4096
         super(VGG16, self).__init__()
         trained = True
-        self.act = nn.LeakyReLU() if activation_function == "LeakyReLU" else nn.ReLU()
+
+        self.act = get_activation_function(activation_function)
         self.block1 = models.vgg16(pretrained=trained).features[0]
         self.block1.bias.requires_grad = False
         self.bn1 = nn.BatchNorm2d(64, eps=1e-04, affine=False)

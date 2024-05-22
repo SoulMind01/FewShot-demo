@@ -18,7 +18,7 @@ class ARGUMENTS:
         dataset_name: str,
         distance_method: str,
         evaluation_method: str = None,
-        activation_function: str = "LeakyReLU",
+        activation_function: str = "leaky_relu",
     ):
         self.normal_class = normal_class
         self.num_ref = num_ref
