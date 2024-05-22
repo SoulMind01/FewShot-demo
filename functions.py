@@ -101,11 +101,11 @@ def analyze_averaged_results(
             if key == "df" or "df" in key:
                 continue
             if x_log_scale:
-                value = [np.mean(value[key]) for key in value]
+                value = [np.nanmean(value[key]) for key in value]
                 plt.plot(x_axis, value, label=key, marker=markers.pop(0))
                 plt.xscale("log")
             else:
-                value = [np.mean(value[key]) for key in value]
+                value = [np.nanmean(value[key]) for key in value]
                 plt.plot(x_axis, value, label=key, marker=markers.pop(0))
         plt.legend(loc="upper left", bbox_to_anchor=(1, 1))
         plt.subplots_adjust(wspace=0.35, hspace=0.7)

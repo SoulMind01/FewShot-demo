@@ -115,7 +115,9 @@ def make_predictions_by_anormaly_score(
     # get performance statistics
     fpr, tpr, _ = roc_curve(np.array(df["label"]), np.array(df["min_dist"]))
     auc = metrics.auc(fpr, tpr)
+    auc = 0 if np.isnan(auc) else auc
     f1 = f1_score(np.array(df["label"]), preds)
+    f1 = 0 if np.isnan(f1) else f1
     fp = len(df.loc[(preds == 1) & (df["label"] == 0)])
     tp = len(df.loc[(preds == 1) & (df["label"] == 1)])
     tn = len(df.loc[(preds == 0) & (df["label"] == 0)])
@@ -174,7 +176,9 @@ def make_predictions_by_closest_dist(
     # get performance statistics
     fpr, tpr, _ = roc_curve(test_labels, pred_labels)
     auc = metrics.auc(fpr, tpr)
+    auc = 0 if np.isnan(auc) else auc
     f1 = f1_score(test_labels, pred_labels)
+    f1 = 0 if np.isnan(f1) else f1
     fp = len(np.where((pred_labels == 1) & (test_labels == 0))[0])
 
     tp = len(np.where((pred_labels == 1) & (test_labels == 1))[0])
