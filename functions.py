@@ -340,6 +340,7 @@ def do_experiment(
                 for class_ in class_range:
                     reset_args(args)
                     args.dataset_name = dataset
+                    args.normal_class = class_
                     if not lock_feature:
                         setattr(args, feature_name, feature)
                     # print(f"dataset: {dataset}, feature: {feature}, class: {class_}")

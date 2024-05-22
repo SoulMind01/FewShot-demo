@@ -23,21 +23,21 @@ def check_and_download(dataset_name: str):
             dataset = datasets.MNIST(
                 root=data_dir,
                 train=False,
-                download=not os.path.exists(os.path.join(data_dir, "MNIST")),
+                download=True,
                 transform=transforms.ToTensor(),
             )
         elif dataset_name == "fashion":
             dataset = datasets.FashionMNIST(
                 root=data_dir,
                 train=False,
-                download=not os.path.exists(os.path.join(data_dir, "FashionMNIST")),
+                download=True,
                 transform=transforms.ToTensor(),
             )
         elif dataset_name == "cifar10":
             dataset = datasets.CIFAR10(
                 root=data_dir,
                 train=False,
-                download=not os.path.exists(os.path.join(data_dir, "CIFAR10")),
+                download=True,
                 transform=transforms.ToTensor(),
             )
     finally:
