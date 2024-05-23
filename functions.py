@@ -110,7 +110,7 @@ def analyze_averaged_results(
                 plt.plot(x_axis, value, label=key, marker=markers.pop(0))
         plt.legend(loc="upper left", bbox_to_anchor=(1, 1))
         plt.subplots_adjust(wspace=0.35, hspace=0.7)
-    plt.savefig(f"{experiment_name}/averaged_results.png")
+    plt.savefig(f"{experiment_name}/{experiment_name}_averaged_results.png")
 
 
 def transpose_results_dimension(results: dict, class_range: np.ndarray) -> dict:
@@ -153,7 +153,8 @@ def scatter_results(
         ax[i].set_xlabel(stats[0])
         ax[i].set_ylabel(stats[1])
         ax[i].set_title(f"{dataset}")
-        ax[i].legend(loc="upper right", bbox_to_anchor=(1, 1))
+        ax[i].legend(loc="upper left", bbox_to_anchor=(1, 1))
+        ax[i].grid()
 
     plt.suptitle("averaged results (along classes)")
     plt.tight_layout()
@@ -261,11 +262,10 @@ def init_result_dicts():
 
 def save_results(results: dict, save_path: str):
     for dataset in results.keys():
+        os.makedirs(f"{save_path}/{dataset}", exist_ok=True)
         for stat in results[dataset].keys():
             if stat == "df":
                 continue
-            if not os.path.exists(f"{save_path}/{dataset}"):
-                os.mkdir(f"{save_path}/{dataset}")
             np.save(f"{save_path}/{dataset}/{stat}.npy", results[dataset][stat])
 
 
@@ -375,7 +375,7 @@ def do_experiment(
     find_path = f"{args.evaluation_method}_results/{experiment_name}"
     if os.path.exists(find_path) and os.listdir(find_path):
         results, _ = load_results(find_path)
-        print("Results loaded from file")
+        print(f"Results loaded from {find_path}")
     else:
         for feature in tqdm(feature_range, desc=f"Running {experiment_name}"):
             for dataset in results.keys():
@@ -387,12 +387,11 @@ def do_experiment(
                 results[dataset]["recall"][feature] = []
                 results[dataset]["acc"][feature] = []
                 for class_ in class_range:
-                    reset_args(args)
+                    args = reset_args(args)
                     args.dataset_name = dataset
                     args.normal_class = class_
                     if not lock_feature:
                         setattr(args, feature_name, feature)
-                    # print(f"dataset: {dataset}, feature: {feature}, class: {class_}")
                     if test_experiment:
                         # assign 6 random values to the feature
                         df, auc, f1, spec, recall, acc, _ = (

@@ -333,7 +333,6 @@ def train(
             optimizer.step()
 
         train_losses.append((loss_sum / len(ind)))
-        # print("Epoch: {}, Train loss: {}".format(epoch + 1, train_losses[-1]))
 
     if small != 0:
         val_dataset = torch.utils.data.Subset(val_dataset, range(small))

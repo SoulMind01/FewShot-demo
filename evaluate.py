@@ -187,9 +187,10 @@ def make_predictions_by_closest_dist(
     specficity = tn / (tn + fp) if tn + fp != 0 else 0
     recall = tp / (tp + fn) if tp + fn != 0 else 0
     acc = (tp + tn) / (tp + tn + fp + fn) if tp + tn + fp + fn != 0 else 0
-    print(
-        f"auc: {auc:.4f}, f1: {f1:.4f}, spec: {specficity:.4f}, recall: {recall:.4f}, acc: {acc:.4f}"
-    )
+
+    args_info = f"dataset: {args.dataset_name}, normal_class: {args.normal_class}, epochs: {args.epochs}"
+    stats = f"auc: {auc:.4f}, f1: {f1:.4f}, spec: {specficity:.4f}, recall: {recall:.4f}, acc: {acc:.4f}"
+    print(f"{args_info}, {stats}")
 
     df = pd.DataFrame(
         {
