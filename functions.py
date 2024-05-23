@@ -367,6 +367,7 @@ def do_experiment(
     save_suffix: str = "",
     compare_stats: list = None,
 ):
+    assert hasattr(args, feature_name), f"args does not have {feature_name}"
     experiment_name = f"{experiment_name}_{args.evaluation_method}"
     i = 1
     results = init_result_dicts()
